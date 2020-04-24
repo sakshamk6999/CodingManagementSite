@@ -4,6 +4,7 @@ var client = require('../cache/redis_db');
 var router = express.Router();
 
 
+
 var getUserInfo = async function(handle){
     return axios.get('https://codeforces.com/api/user.info?handles=' + handle);
 }
@@ -28,7 +29,7 @@ var setSubmissions = async function(submissions){
             }
         }
     }
-    client.setex('topicDist', 24*3600,JSON.stringify(favTopics));
+    client.set('topicDist',JSON.stringify(favTopics));
     client.set('numSolved', successSubmissions.length);
     console.log(favTopics);
     return [successSubmissions, favTopics];
@@ -54,6 +55,19 @@ var submissionRequest = function(res, reqType){
         res.json(err);
     })
     
+}
+
+
+var recommendQuestions = function(res, handle, n){
+    getSubmissions(handle).then(function(response){
+        setSubmissions(response.data.result).then(function(retVals){
+
+        }).catch(function(err){
+            console.log(err);
+        })
+    }).catch(function(err){
+        console.log(err);
+    })
 }
 
 router.get('/', function(req, res){
@@ -109,5 +123,9 @@ router.get('/topicDist', function(req, res){
         res.redirect('/login');
     }
 })
+
+
+
+router.get('/recommendQues', )
 
 module.exports = router;
