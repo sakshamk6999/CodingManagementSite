@@ -2,7 +2,7 @@ var express = require('express');
 var axios = require('axios');
 var pug = require('pug');
 var bodyParser = require('body-parser');
-const session = require('express-session');
+var session = require('express-session');
 
 var PORT = process.env.PORT || 3000;
 var app = express();
