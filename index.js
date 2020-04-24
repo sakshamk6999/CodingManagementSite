@@ -4,6 +4,7 @@ var pug = require('pug');
 var bodyParser = require('body-parser');
 const session = require('express-session');
 
+var PORT = process.env.PORT || 3000;
 var app = express();
 app.set("views", "./template");
 app.set("view engine", "pug");
@@ -25,6 +26,6 @@ app.use('/', contestRoute);
 app.use('/login', loginRoute);
 app.use('/user', userRoute);
 
-app.listen(3000, function(){
+app.listen(PORT, function(){
     console.log('up and running now');
 });
