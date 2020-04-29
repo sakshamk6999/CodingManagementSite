@@ -2,8 +2,7 @@ var express = require('express');
 var axios = require('axios');
 var client = require('../cache/redis_db');
 var router = express.Router();
-
-
+var redis = require('redis');
 
 var getUserInfo = async function(handle){
     return axios.get('https://codeforces.com/api/user.info?handles=' + handle);
@@ -13,13 +12,16 @@ var getSubmissions = async function(handle){
     return axios.get('https://codeforces.com/api/user.status?handle=' + handle);
 }
 
-var setSubmissions = async function(submissions){
+var setSubmissions = async function(submissions, handle){
     successSubmissions = [];
+    successProblems = {};
     // submissionDistribution = {};
     favTopics = {};
+
     for(var i = 0; i < submissions.length; i++){
         if(submissions[i]['verdict'] === 'OK'){
             successSubmissions.push(submissions[i]);
+            successProblems[submissions[i].problem.name] = 1;
             for(var j = 0; j < submissions[i].problem.tags.length; j++){
                 if(favTopics[submissions[i].problem.tags[j]]){
                     favTopics[submissions[i].problem.tags[j]] += 1;
@@ -29,23 +31,28 @@ var setSubmissions = async function(submissions){
             }
         }
     }
-    client.set('topicDist',JSON.stringify(favTopics));
-    client.set('numSolved', successSubmissions.length);
-    console.log(favTopics);
-    return [successSubmissions, favTopics];
+    console.log(handle);
+    client.set(handle + ' topicDist',JSON.stringify(favTopics), redis.print);
+    // client.set(handle + ' numSolved',successSubmissions.length, redis.print);
+    // console.log(favTopics);
+    return [successSubmissions, favTopics, successProblems];
 }
 
 
-var submissionRequest = function(res, reqType){
-    getSubmissions(sess.handle).then(function(response){
-        setSubmissions(response.data.result).then(function(done){
+var submissionRequest = async function(res, reqType, sess){
+    return getSubmissions(sess.handle).then(function(response){
+        // console.log('done1');
+        return setSubmissions(response.data.result, sess.handle).then(function(done){
+            // console.log('donne2');
             if(reqType == 'submissions'){
-            res.json(response.data.result);
+                // console.log('yes');
+                // console.log(response.data.result);
+                return response.data.result;
             // console.log(done.length);
             }else if(reqType == 'successSubmissions'){
-                res.json(done[0]);
+                return done[0];
             }else{
-                res.json(done[1]);
+                return done[1];
             }
         }).catch(function(err){
             console.log(err);
@@ -58,23 +65,11 @@ var submissionRequest = function(res, reqType){
 }
 
 
-var recommendQuestions = function(res, handle, n){
-    getSubmissions(handle).then(function(response){
-        setSubmissions(response.data.result).then(function(retVals){
-
-        }).catch(function(err){
-            console.log(err);
-        })
-    }).catch(function(err){
-        console.log(err);
-    })
-}
-
 router.get('/', function(req, res){
     sess = req.session;
     if(sess.handle){
 
-        client.get('userInfo', (err, r)=>{
+        client.get(sess.handle + ' userInfo', (err, r)=>{
             if(r){
                 res.send(r);
             }else{
@@ -86,7 +81,7 @@ router.get('/', function(req, res){
                     result['rating'] = temp['rating'];
                     result['maxRating'] = temp['maxRating'];
                     result['maxRank'] = temp['maxRank'];
-                    client.setex('userInfo', 3600, JSON.stringify(result));
+                    client.setex(sess.handle + ' userInfo', 600, JSON.stringify(result));
                     res.json(result);
                 }).catch(function(err){
                     res.json(err);
@@ -102,7 +97,10 @@ router.get('/', function(req, res){
 router.get('/submissions', function(req, res){
     sess = req.session;
     if(sess.handle){
-        submissionRequest(res, 'submissions');
+        submissionRequest(res, 'submissions', sess).then((data)=>{
+            res.json(data[0]);
+            // console.log(data);
+        })
     }else{
         res.redirect('/login');
     }
@@ -111,21 +109,33 @@ router.get('/submissions', function(req, res){
 router.get('/topicDist', function(req, res){
     sess = req.session;
     if(sess.handle){
-        
-        client.get('topicDist', (err, r)=>{
-            if(r){
-                res.send(r);
-            }else{
-                submissionRequest(res, 'favTopics');
-            }
-        })
+        getTopicDistribution(res);
+        // client.get(sess.handle + ' topicDist', (err, r)=>{
+        //     if(r){
+        //         res.send(r);
+        //     }else{
+                
+        //     }
+        // })
     }else{
         res.redirect('/login');
     }
 })
 
+router.get('/successSubmission', function(req, res){
+    sess = req.session;
+    if(sess.handle){
+        submissionRequest(res, 'successSubmissions', sess).then((result)=>{
+            res.json(result);
+        });
+    }else{
+        res.redirect('/login');
+    }
+})
 
+// router.get('/temp', function(req, res){
 
-router.get('/recommendQues', )
+// })
+// router.get('/recommendQues', )
 
 module.exports = router;
